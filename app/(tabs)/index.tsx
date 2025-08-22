@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { Platform, StyleSheet, TextInput, FlatList, TouchableOpacity, Text, View } from 'react-native';
+import { Platform, StyleSheet, TextInput, FlatList, TouchableOpacity, Text, View, Alert } from 'react-native';
 import { useState } from 'react';
 
 import { HelloWave } from '@/components/HelloWave';
@@ -9,14 +9,47 @@ import { ThemedView } from '@/components/ThemedView';
 
 export default function HomeScreen() {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState([
-    { id: '1', name: 'Oreo Cookies', brand: 'Nabisco', ingredients: 12 },
-    { id: '2', name: 'Coca Cola', brand: 'Coca Cola', ingredients: 7 },
-  ]); // placeholder data
+  const [results, setResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const handleSearch = () => {
-    console.log('Searching for:', query);
-    // later: connect API
+  const handleSearch = async () => {
+    if (!query.trim()) {
+      Alert.alert('Please enter a search query');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // OpenFoodFacts search API
+      const url = `https://world.openfoodfacts.net/cgi/search.pl?search_terms=${encodeURIComponent(
+        query
+      )}&search_simple=1&action=process&json=1&page_size=10`;
+
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch products');
+
+      const data = await response.json();
+
+      if (data.products && data.products.length > 0) {
+        setResults(
+          data.products.map((item: any, index: number) => ({
+            id: item.code || index.toString(),
+            name: item.product_name || 'Unknown',
+            brand: item.brands || 'Unknown',
+            ingredients: item.ingredients_text || 'No ingredients listed',
+          }))
+        );
+      } else {
+        setResults([]);
+        Alert.alert('No products found');
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Something went wrong while fetching products');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const renderItem = ({ item }: any) => (
@@ -27,7 +60,7 @@ export default function HomeScreen() {
       <View style={{ flex: 1 }}>
         <Text style={styles.foodName}>{item.name}</Text>
         <Text style={styles.brand}>{item.brand}</Text>
-        <Text style={styles.ingredients}>{item.ingredients} ingredients</Text>
+        <Text style={styles.ingredients}>{item.ingredients}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -55,14 +88,14 @@ export default function HomeScreen() {
           value={query}
           onChangeText={setQuery}
         />
-        <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
+        <TouchableOpacity style={styles.searchButton} onPress={handleSearch} disabled={loading}>
           <ThemedText type="defaultSemiBold" style={{ color: '#fff', textAlign: 'center' }}>
-            Search
+            {loading ? 'Searching...' : 'Search'}
           </ThemedText>
         </TouchableOpacity>
       </ThemedView>
 
-      {/* Enhanced Results */}
+      {/* Results */}
       <FlatList
         data={results}
         keyExtractor={(item) => item.id}
